@@ -10,3 +10,7 @@ Here, I used Tensorflow 2, but with TF graphs created using v1 backward compatib
 `tf_dqn_weights.npz` is a numpy file containing the weights of each of the DQN layers.
 
 `attempt2.mp4` is a video of the trained DQN playing Breakout.
+
+---
+
+credits to: https://www.udemy.com/course/deep-reinforcement-learning-in-python/
