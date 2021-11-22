@@ -7,6 +7,7 @@ import gym
 import ale_py
 import sys
 from datetime import datetime
+import os
 
 # %tensorflow_version 2.x
 import tensorflow as tf
@@ -22,6 +23,10 @@ MIN_EXPERIENCES = 50000
 TARGET_UPDATE_PERIOD = 10000
 IM_SIZE = 84
 K = 4 #env.action_space.n
+
+# check if model has been previously trained, will continue training if so
+if os.path.isfile('./tf_dqn_weights.npz'):
+  continue_training = True
 
 ##########################################################################################################################################################################
 ##########################################################################################################################################################################
@@ -398,6 +403,12 @@ epsilon = 1.0
 epsilon_min = 0.1
 epsilon_change = (epsilon - epsilon_min) / MAX_EXPERIENCES
 
+if continue_training:
+  epsilon = 0.1
+  epsilon_change = 0
+  num_episodes = 500
+  episode_rewards = np.zeros(num_episodes)
+
 # Create environment
 env = gym.make("Breakout-v0") #gym.envs.make("Breakout-v0")
 
@@ -423,19 +434,41 @@ with tf.compat.v1.Session() as sess:
   behav_model.set_session(sess)
   target_model.set_session(sess)
   sess.run(tf.compat.v1.global_variables_initializer())
-  
+
+  # if model has been previously trained
+  if continue_training:
+    print('######################################')
+    print('will continue training for %d episodes' % num_episodes)
+    behav_model.load()
+
   # populate experience buffer
   print("Populating experience replay buffer...")
   obs = env.reset()
+  done = False
+  obs_small = image_transformer.transform(obs, sess)
+  state = np.stack([obs_small] * 4, axis=2)
+
   for i in tqdm(range(MIN_EXPERIENCES)):
-    action = np.random.choice(K)
-    obs, reward, done, _ = env.step(action)
-    obs_small = image_transformer.transform(obs, sess) # not used anymore
+    if not continue_training:
+      # choose action randomly if untrained
+      action = np.random.choice(K)
+      obs, reward, done, _ = env.step(action)
+      obs_small = image_transformer.transform(obs, sess) # not used anymore
+    else:
+      # follow behaviour model
+      action = behav_model.sample_action(state, epsilon)
+      obs, reward, done, _ = env.step(action)
+      obs_small = image_transformer.transform(obs, sess) # not used anymore
+      state = update_state(state, obs_small) 
+
+    # add to replay buffer
     experience_replay_buffer.add_experience(action, obs_small, reward, done)
+
     # if game ends before minimal number of experiences are needed, reset environment
     if done:
         obs = env.reset()
 
+  del done, state, obs, obs_small
 
   # Play a number of episodes and learn!
   t0 = datetime.now()
